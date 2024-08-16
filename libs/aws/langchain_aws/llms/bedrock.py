@@ -248,6 +248,7 @@ class AnthropicTool(TypedDict):
     description: str
     input_schema: Dict[str, Any]
 
+##TODO: O1 Tool
 
 class LLMInputOutputAdapter:
     """Adapter class to prepare the inputs from Langchain to a format
@@ -292,9 +293,17 @@ class LLMInputOutputAdapter:
         elif provider in ("ai21", "cohere", "meta", "mistral"):
             input_body["prompt"] = prompt
         elif provider == "amazon":
-            input_body = dict()
-            input_body["inputText"] = prompt
-            input_body["textGenerationConfig"] = {**model_kwargs}
+            if messages:
+                input_body["messages"] = messages
+
+                if system:
+                    input_body["system"] = system
+                # if tools:
+                #     input_body["tools"] = tools
+            else:
+                input_body = dict()
+                input_body["inputText"] = prompt
+                input_body["textGenerationConfig"] = {**model_kwargs}
         else:
             input_body["inputText"] = prompt
 
@@ -315,7 +324,8 @@ class LLMInputOutputAdapter:
                     text = content[0]["text"]
                 elif any(block["type"] == "tool_use" for block in content):
                     tool_calls = extract_tool_calls(content)
-
+        elif provider == "amazon":
+            text = response_body.get("output").get("message").get("content")[0].get("text")
         else:
             if provider == "ai21":
                 text = response_body.get("completions")[0].get("data").get("text")
@@ -693,6 +703,7 @@ class BedrockBase(BaseLanguageModel, ABC):
             system=system,
             messages=messages,
         )
+
         if "claude-3" in self._get_model():
             if _tools_in_params(params):
                 input_body = LLMInputOutputAdapter.prepare_input(

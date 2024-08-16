@@ -242,6 +242,26 @@ def _merge_messages(
             merged.append(curr)
     return merged
 
+def _format_amazon_messages(
+        messages: List[BaseMessage],
+) -> Tuple[Optional[str], List[Dict]]:
+    system: List[Dict] = []
+    formatted_messages: List[Dict] = []    
+
+    for message in messages:
+        if message.type == "system":
+            system.append({
+                "type": "system",
+                "content": [{"text": message.content}]
+            })
+        else:
+            formatted_messages.append({
+                "role": "user",
+                "content": [{"text": message.content}]
+            })
+    
+    return system, formatted_messages
+
 
 def _format_anthropic_messages(
     messages: List[BaseMessage],
@@ -355,6 +375,7 @@ class ChatPromptAdapter:
                 human_prompt="\n\nUser:",
                 ai_prompt="\n\nBot:",
             )
+            
         else:
             raise NotImplementedError(
                 f"Provider {provider} model does not support chat."
@@ -371,8 +392,12 @@ class ChatPromptAdapter:
         raise NotImplementedError(
             f"Provider {provider} not supported for format_messages"
         )
-
-
+    @classmethod
+    def format_amazon_messages(
+            cls, messages: List[BaseMessage]
+    ) -> Tuple[List[Dict], List[Dict]]:
+        return _format_amazon_messages(messages)
+        
 _message_type_lookups = {
     "human": "user",
     "ai": "assistant",
@@ -519,6 +544,10 @@ class ChatBedrock(BaseChatModel, BedrockBase):
                         system = self.system_prompt_with_tools + f"\n{system}"
                     else:
                         system = self.system_prompt_with_tools
+            elif provider == "amazon":
+                system, formatted_messages = ChatPromptAdapter.format_amazon_messages(
+                    messages
+                )
             else:
                 prompt = ChatPromptAdapter.convert_messages_to_prompt(
                     provider=provider, messages=messages, model=self._get_model()
